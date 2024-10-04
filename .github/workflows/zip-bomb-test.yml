@@ -49,3 +49,4 @@ jobs:
           git push || echo "Push failed due to large files"
         else
           echo "No files to commit"
+        fi  # Ensure the if-statement is closed properly
