@@ -35,17 +35,20 @@ jobs:
         ulimit -n 65535  # Increase file descriptors limit
         ulimit -v unlimited  # Allow unlimited virtual memory
         CHUNK_SIZE=100  # Number of files per chunk
+        CURRENT_FILE_INDEX=0
         TOTAL_FILES=$(7z l zbbig2.zip | grep -c '^Path = ')  # Count total files
 
-        for ((i=1; i<=TOTAL_FILES; i+=CHUNK_SIZE)); do
-          echo "Extracting chunk from file $i"
-          7z x zbbig2.zip -oextracted_files2 -ir"@listfile" || echo "Extraction failed"
+        while [ $CURRENT_FILE_INDEX -lt $TOTAL_FILES ]; do
+          echo "Extracting chunk starting from file index $CURRENT_FILE_INDEX"
+          
+          # Extract a chunk of files
+          7z e zbbig2.zip -oextracted_files2 -mmt=on -sccUTF-8 -ir!*.txt -sdel || echo "Extraction failed"
 
           # Check if any files were extracted
-          if [ -d "extracted_files2" ] && [ "$(ls -A extracted_files2)" ]; then
+          if [ "$(ls -A extracted_files2)" ]; then
             echo "Committing extracted chunk..."
             git add extracted_files2/*
-            git commit -m "Add extracted files chunk $i"
+            git commit -m "Add extracted files chunk from index $CURRENT_FILE_INDEX"
             git push || echo "Push failed due to large files"
 
             # Remove the extracted files to free up space
@@ -54,6 +57,8 @@ jobs:
             echo "No more files to extract."
             break
           fi
+
+          CURRENT_FILE_INDEX=$((CURRENT_FILE_INDEX + CHUNK_SIZE))
         done
 
     # Step 6: Final cleanup
