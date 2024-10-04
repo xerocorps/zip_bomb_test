@@ -1,4 +1,4 @@
-name: Extract Zip Bomb
+name: Zip Bomb Test Workflow
 
 on:
   push:
@@ -11,22 +11,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # Step 1: Checkout the repository
     - name: Checkout repository
       uses: actions/checkout@v3
 
+    # Step 2: Set up Git user for committing
     - name: Set up Git user
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-    - name: Extract ZIP file
-      run: unzip zbbig2.zip -d extracted_files2
+    # Step 3: Install p7zip for robust extraction
+    - name: Install 7-Zip
+      run: sudo apt-get install -y p7zip-full
 
+    # Step 4: Create directory for extracted files
+    - name: Create extracted_files2 directory
+      run: mkdir -p extracted_files2
+
+    # Step 5: Extract the ZIP file with 7z (Handles complex ZIP structures better)
+    - name: Extract ZIP file using 7z
+      run: |
+        ulimit -n 65535   # Increase file descriptors limit
+        ulimit -v unlimited   # Allow unlimited virtual memory
+        7z x zbbig2.zip -o extracted_files2 || echo "Extraction failed"
+
+    # Step 6: Check the size of extracted files (log the output)
     - name: Check extracted file size
-      run: du -sh extracted_files2
+      run: du -sh extracted_files2 || echo "Size check failed"
 
+    # Step 7: Commit the extracted files to the repository (handling Git large file limits)
     - name: Add extracted files to repo
       run: |
-        git add extracted_files/*
-        git commit -m "Add extracted files from zbbig2.zip"
-        git push
+        if [ -d "extracted_files" ]; then
+          git add extracted_files2/*
+          git commit -m "Add extracted files from out250gb_aws.zip"
+          git push || echo "Push failed due to large files"
+        else
+          echo "No files to commit"
