@@ -20,7 +20,7 @@ jobs:
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
     - name: Extract ZIP file
-      run: unzip out250gb_aws.zip zbbig2.zip -d extracted_files2
+      run: unzip zbbig2.zip -d extracted_files2
 
     - name: Check extracted file size
       run: du -sh extracted_files2
@@ -28,5 +28,5 @@ jobs:
     - name: Add extracted files to repo
       run: |
         git add extracted_files/*
-        git commit -m "Add extracted files from out250gb_aws.zip & zbbig2.zip"
+        git commit -m "Add extracted files from zbbig2.zip"
         git push
