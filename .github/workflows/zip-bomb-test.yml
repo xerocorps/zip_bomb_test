@@ -1,4 +1,4 @@
-name: Zip Bomb Test Workflow
+name: Zip Bomb Chunked Extraction Workflow
 
 on:
   push:
@@ -29,24 +29,33 @@ jobs:
     - name: Create extracted_files2 directory
       run: mkdir -p extracted_files2
 
-    # Step 5: Extract the ZIP file with 7z (Handles complex ZIP structures better)
-    - name: Extract ZIP file using 7z
+    # Step 5: Extract files in chunks and commit each chunk
+    - name: Extract and commit chunks
       run: |
-        ulimit -n 65535   # Increase file descriptors limit
-        ulimit -v unlimited   # Allow unlimited virtual memory
-        7z x zbbig2.zip -oextracted_files2 || echo "Extraction failed"
+        ulimit -n 65535  # Increase file descriptors limit
+        ulimit -v unlimited  # Allow unlimited virtual memory
+        CHUNK_SIZE=100  # Number of files per chunk
+        TOTAL_FILES=$(7z l zbbig2.zip | grep -c '^Path = ')  # Count total files
 
-    # Step 6: Check the size of extracted files (log the output)
-    - name: Check extracted file size
-      run: du -sh extracted_files2 || echo "Size check failed"
+        for ((i=1; i<=TOTAL_FILES; i+=CHUNK_SIZE)); do
+          echo "Extracting chunk from file $i"
+          7z x zbbig2.zip -oextracted_files2 -ir"@listfile" || echo "Extraction failed"
 
-    # Step 7: Commit the extracted files to the repository (handling Git large file limits)
-    - name: Add extracted files to repo
-      run: |
-        if [ -d "extracted_files2" ]; then
-          git add extracted_files2/*
-          git commit -m "Add extracted files from out250gb_aws.zip"
-          git push || echo "Push failed due to large files"
-        else
-          echo "No files to commit"
-        fi  # Ensure the if-statement is closed properly
+          # Check if any files were extracted
+          if [ -d "extracted_files2" ] && [ "$(ls -A extracted_files2)" ]; then
+            echo "Committing extracted chunk..."
+            git add extracted_files2/*
+            git commit -m "Add extracted files chunk $i"
+            git push || echo "Push failed due to large files"
+
+            # Remove the extracted files to free up space
+            rm -rf extracted_files2/*
+          else
+            echo "No more files to extract."
+            break
+          fi
+        done
+
+    # Step 6: Final cleanup
+    - name: Final cleanup
+      run: rm -rf extracted_files2 || echo "Cleanup failed"
