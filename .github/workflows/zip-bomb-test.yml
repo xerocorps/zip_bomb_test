@@ -26,17 +26,10 @@ jobs:
           7z l zbbig2.zip | grep -E '^[0-9]+.*$' | awk '{print $NF}' > file_list.txt
           cat file_list.txt
 
-      # Step 4: Process files one at a time
+      # Step 4: Extract and commit files one at a time
       - name: Unzip and commit files one at a time
         run: |
           while IFS= read -r file; do
-            # Check available disk space before extraction
-            available_space=$(df / | tail -1 | awk '{print $4}')
-            if [ "$available_space" -lt 1048576 ]; then  # Less than 1GB available
-              echo "Not enough space to extract files. Available: $available_space KB. Exiting."
-              exit 1
-            fi
-
             # Extract one file
             7z e zbbig2.zip "$file" -o. || { echo "Failed to extract $file"; exit 1; }
 
