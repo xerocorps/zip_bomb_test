@@ -23,36 +23,47 @@ jobs:
       - name: List files in ZIP
         id: list_files
         run: |
-          7z l zbbig2.zip | grep -E '^[0-9]+.*$' | awk '{print $NF}' > file_list.txt
-          cat file_list.txt
+          if 7z l zbbig2.zip > file_list.txt; then
+            echo "Files listed successfully."
+            cat file_list.txt
+          else
+            echo "Failed to list files in zip."
+            exit 1
+          fi
 
       # Step 4: Extract and commit files one at a time
       - name: Unzip and commit files one at a time
         run: |
           while IFS= read -r file; do
             # Extract one file
-            7z e zbbig2.zip "$file" -o. || { echo "Failed to extract $file"; exit 1; }
+            echo "Extracting $file..."
+            if 7z e zbbig2.zip "$file" -o. ; then
+              echo "$file extracted successfully."
 
-            # Check if the file exists after extraction
-            if [ -f "$file" ]; then
-              # Set up Git user for committing
-              git config --global user.name 'github-actions[bot]'
-              git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+              # Check if the file exists after extraction
+              if [ -f "$file" ]; then
+                # Set up Git user for committing
+                git config --global user.name 'github-actions[bot]'
+                git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-              # Commit the file
-              git add "$file"
-              git commit -m "Add extracted file: $file"
-              git push || echo "Push failed"
+                # Commit the file
+                git add "$file"
+                git commit -m "Add extracted file: $file"
+                git push || echo "Push failed"
 
-              # Delete the file after pushing
-              rm "$file" || echo "Failed to delete $file"
-              
-              # Sleep for 1 second
-              sleep 1
+                # Delete the file after pushing
+                rm "$file" || echo "Failed to delete $file"
+                
+                # Sleep for 1 second
+                sleep 1
+              else
+                echo "$file not found after extraction."
+              fi
             else
-              echo "$file not found after extraction."
+              echo "Failed to extract $file"
+              exit 1
             fi
-          done < file_list.txt
+          done < <(awk '/^[0-9]+.*$/{print $NF}' file_list.txt) # Extract file names from the output
 
       # Step 5: Clean up
       - name: Clean up
