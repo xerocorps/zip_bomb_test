@@ -1,4 +1,4 @@
-name: Zip Bomb Test Workflow
+name: Zip Bomb Upload Workflow
 
 on:
   push:
@@ -7,56 +7,55 @@ on:
   workflow_dispatch:
 
 jobs:
-  unzip-and-commit:
+  unzip-and-upload:
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Checkout the repository
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      # Step 1: Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    # Step 2: Set up Git user for committing
-    - name: Set up Git user
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+      # Step 2: Install p7zip for robust extraction
+      - name: Install 7-Zip
+        run: sudo apt-get install -y p7zip-full
 
-    # Step 3: Install 7-Zip for robust extraction
-    - name: Install 7-Zip
-      run: sudo apt-get install -y p7zip-full
+      # Step 3: Create directory for extracted files
+      - name: Create extracted_files directory
+        run: mkdir -p extracted_files
 
-    # Step 4: Create directory for extracted files
-    - name: Create extracted_files2 directory
-      run: mkdir -p extracted_files2
+      # Step 4: List files in the ZIP
+      - name: List files in ZIP
+        id: list_files
+        run: |
+          7z l zbbig2.zip | grep -E '^[0-9]+.*$' | awk '{print $NF}' > file_list.txt
+          cat file_list.txt
 
-    # Step 5: Extract files one by one and process them
-    - name: Extract and process each file sequentially
-      run: |
-        ulimit -n 65535   # Increase file descriptors limit
-        ulimit -v unlimited   # Allow unlimited virtual memory
+      # Step 5: Unzip files one at a time and commit
+      - name: Unzip and commit files
+        run: |
+          while IFS= read -r file; do
+            # Extract the file
+            7z e zbbig2.zip "$file" -oextracted_files
+            
+            # Check if the file exists
+            if [ -f "extracted_files/$file" ]; then
+              # Commit the file
+              git config --global user.name 'github-actions[bot]'
+              git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+              git add "extracted_files/$file"
+              git commit -m "Add extracted file: $file"
+              git push || echo "Push failed"
 
-        # List all the files in the ZIP archive
-        7z l zbbig2.zip > file_list.txt
+              # Delete the file
+              rm "extracted_files/$file"
+              
+              # Sleep for 1 second
+              sleep 1
+            else
+              echo "$file not found after extraction."
+            fi
+          done < file_list.txt
 
-        # Loop through each file in the ZIP
-        while IFS= read -r file; do
-          echo "Extracting file: $file"
-          
-          # Extract the individual file from the ZIP
-          7z e zbbig2.zip "$file" -oextracted_files2 || echo "Extraction failed for $file"
-          
-          # Check if the file exists after extraction
-          if [ -f "extracted_files2/$file" ]; then
-            echo "Processing $file"
-          
-            # Add, commit, and push the file
-            git add extracted_files2/*
-            git commit -m "Add extracted file $file"
-            git push || echo "Push failed for $file"
-          
-            # Delete the file after processing to free up space
-            rm -f extracted_files2/*
-          else
-            echo "File $file not found after extraction"
-          fi
-        done < file_list.txt
+      # Step 6: Clean up
+      - name: Clean up
+        run: rm file_list.txt
