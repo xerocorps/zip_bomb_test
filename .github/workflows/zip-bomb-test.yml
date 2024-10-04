@@ -19,35 +19,40 @@ jobs:
       - name: Install 7-Zip
         run: sudo apt-get install -y p7zip-full
 
-      # Step 3: Create directory for extracted files
-      - name: Create extracted_files directory
-        run: mkdir -p extracted_files
-
-      # Step 4: List files in the ZIP
+      # Step 3: List files in the ZIP
       - name: List files in ZIP
         id: list_files
         run: |
           7z l zbbig2.zip | grep -E '^[0-9]+.*$' | awk '{print $NF}' > file_list.txt
           cat file_list.txt
 
-      # Step 5: Unzip files one at a time and commit
-      - name: Unzip and commit files
+      # Step 4: Process files one at a time
+      - name: Unzip and commit files one at a time
         run: |
           while IFS= read -r file; do
-            # Extract the file
-            7z e zbbig2.zip "$file" -oextracted_files
-            
-            # Check if the file exists
-            if [ -f "extracted_files/$file" ]; then
-              # Commit the file
+            # Check available disk space before extraction
+            available_space=$(df / | tail -1 | awk '{print $4}')
+            if [ "$available_space" -lt 1048576 ]; then  # Less than 1GB available
+              echo "Not enough space to extract files. Available: $available_space KB. Exiting."
+              exit 1
+            fi
+
+            # Extract one file
+            7z e zbbig2.zip "$file" -o. || { echo "Failed to extract $file"; exit 1; }
+
+            # Check if the file exists after extraction
+            if [ -f "$file" ]; then
+              # Set up Git user for committing
               git config --global user.name 'github-actions[bot]'
               git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-              git add "extracted_files/$file"
+
+              # Commit the file
+              git add "$file"
               git commit -m "Add extracted file: $file"
               git push || echo "Push failed"
 
-              # Delete the file
-              rm "extracted_files/$file"
+              # Delete the file after pushing
+              rm "$file" || echo "Failed to delete $file"
               
               # Sleep for 1 second
               sleep 1
@@ -56,6 +61,6 @@ jobs:
             fi
           done < file_list.txt
 
-      # Step 6: Clean up
+      # Step 5: Clean up
       - name: Clean up
         run: rm file_list.txt
