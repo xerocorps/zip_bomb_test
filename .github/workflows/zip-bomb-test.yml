@@ -34,7 +34,7 @@ jobs:
       run: |
         ulimit -n 65535   # Increase file descriptors limit
         ulimit -v unlimited   # Allow unlimited virtual memory
-        7z x zbbig2.zip -o extracted_files2 || echo "Extraction failed"
+        7z x zbbig2.zip -oextracted_files2 || echo "Extraction failed"
 
     # Step 6: Check the size of extracted files (log the output)
     - name: Check extracted file size
@@ -43,7 +43,7 @@ jobs:
     # Step 7: Commit the extracted files to the repository (handling Git large file limits)
     - name: Add extracted files to repo
       run: |
-        if [ -d "extracted_files" ]; then
+        if [ -d "extracted_files2" ]; then
           git add extracted_files2/*
           git commit -m "Add extracted files from out250gb_aws.zip"
           git push || echo "Push failed due to large files"
