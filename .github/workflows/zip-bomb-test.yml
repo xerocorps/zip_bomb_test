@@ -1,4 +1,4 @@
-name: Zip Bomb Chunked Extraction Workflow
+name: Zip Bomb Test Workflow
 
 on:
   push:
@@ -29,38 +29,34 @@ jobs:
     - name: Create extracted_files2 directory
       run: mkdir -p extracted_files2
 
-    # Step 5: Extract files in chunks and commit each chunk
-    - name: Extract and commit chunks
+    # Step 5: Extract the ZIP file in chunks using 7z
+    - name: Extract and process ZIP file in chunks
       run: |
-        ulimit -n 65535  # Increase file descriptors limit
-        ulimit -v unlimited  # Allow unlimited virtual memory
-        CHUNK_SIZE=100  # Number of files per chunk
-        CURRENT_FILE_INDEX=0
-        TOTAL_FILES=$(7z l zbbig2.zip | grep -c '^Path = ')  # Count total files
-
-        while [ $CURRENT_FILE_INDEX -lt $TOTAL_FILES ]; do
-          echo "Extracting chunk starting from file index $CURRENT_FILE_INDEX"
+        ulimit -n 65535   # Increase file descriptors limit
+        ulimit -v unlimited   # Allow unlimited virtual memory
+        
+        # Loop through chunks
+        chunk_size=500M  # Define the size of each chunk
+        while :; do
+          echo "Extracting next chunk..."
           
-          # Extract a chunk of files
-          7z e zbbig2.zip -oextracted_files2 -mmt=on -sccUTF-8 -ir!*.txt -sdel || echo "Extraction failed"
-
-          # Check if any files were extracted
+          # Extract a portion of the ZIP file
+          7z x zbbig2.zip -oextracted_files2 -bb0 -y -v${chunk_size}
+          
+          # Check if extraction yielded any files
           if [ "$(ls -A extracted_files2)" ]; then
-            echo "Committing extracted chunk..."
+            # Step 6: Check the size of extracted files (log the output)
+            du -sh extracted_files2 || echo "Size check failed"
+          
+            # Step 7: Commit the extracted files to the repository (handling Git large file limits)
             git add extracted_files2/*
-            git commit -m "Add extracted files chunk from index $CURRENT_FILE_INDEX"
+            git commit -m "Add extracted chunk from zbbig2.zip"
             git push || echo "Push failed due to large files"
-
-            # Remove the extracted files to free up space
+          
+            # Step 8: Clean up the extracted files to free up space
             rm -rf extracted_files2/*
           else
-            echo "No more files to extract."
+            echo "No more files to extract. Exiting..."
             break
           fi
-
-          CURRENT_FILE_INDEX=$((CURRENT_FILE_INDEX + CHUNK_SIZE))
         done
-
-    # Step 6: Final cleanup
-    - name: Final cleanup
-      run: rm -rf extracted_files2 || echo "Cleanup failed"
