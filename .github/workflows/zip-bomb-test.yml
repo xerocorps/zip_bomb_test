@@ -21,7 +21,7 @@ jobs:
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-    # Step 3: Install p7zip for robust extraction
+    # Step 3: Install 7-Zip for robust extraction
     - name: Install 7-Zip
       run: sudo apt-get install -y p7zip-full
 
@@ -29,34 +29,34 @@ jobs:
     - name: Create extracted_files2 directory
       run: mkdir -p extracted_files2
 
-    # Step 5: Extract the ZIP file in chunks using 7z
-    - name: Extract and process ZIP file in chunks
+    # Step 5: Extract files one by one and process them
+    - name: Extract and process each file sequentially
       run: |
         ulimit -n 65535   # Increase file descriptors limit
         ulimit -v unlimited   # Allow unlimited virtual memory
-        
-        # Loop through chunks
-        chunk_size=500M  # Define the size of each chunk
-        while :; do
-          echo "Extracting next chunk..."
+
+        # List all the files in the ZIP archive
+        7z l zbbig2.zip > file_list.txt
+
+        # Loop through each file in the ZIP
+        while IFS= read -r file; do
+          echo "Extracting file: $file"
           
-          # Extract a portion of the ZIP file
-          7z x zbbig2.zip -oextracted_files2 -bb0 -y -v${chunk_size}
+          # Extract the individual file from the ZIP
+          7z e zbbig2.zip "$file" -oextracted_files2 || echo "Extraction failed for $file"
           
-          # Check if extraction yielded any files
-          if [ "$(ls -A extracted_files2)" ]; then
-            # Step 6: Check the size of extracted files (log the output)
-            du -sh extracted_files2 || echo "Size check failed"
+          # Check if the file exists after extraction
+          if [ -f "extracted_files2/$file" ]; then
+            echo "Processing $file"
           
-            # Step 7: Commit the extracted files to the repository (handling Git large file limits)
+            # Add, commit, and push the file
             git add extracted_files2/*
-            git commit -m "Add extracted chunk from zbbig2.zip"
-            git push || echo "Push failed due to large files"
+            git commit -m "Add extracted file $file"
+            git push || echo "Push failed for $file"
           
-            # Step 8: Clean up the extracted files to free up space
-            rm -rf extracted_files2/*
+            # Delete the file after processing to free up space
+            rm -f extracted_files2/*
           else
-            echo "No more files to extract. Exiting..."
-            break
+            echo "File $file not found after extraction"
           fi
-        done
+        done < file_list.txt
